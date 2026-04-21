@@ -1,0 +1,52 @@
+{
+  "model_name": "transformer",
+  "task_type": "classifier",
+  "seq_len": 4,
+  "feature_scheme": "insdn_runtime10_v2",
+  "feature_names": [
+    "packet_count",
+    "byte_count",
+    "flow_duration_s",
+    "packet_rate",
+    "byte_rate",
+    "avg_packet_size",
+    "dst_port_norm",
+    "protocol_tcp",
+    "protocol_udp",
+    "protocol_icmp"
+  ],
+  "onnx_filename": "transformer.onnx",
+  "metrics_filename": "transformer.metrics.json",
+  "preprocessing": {
+    "kind": "signed_log_robust_stats",
+    "scaler_stats_filename": "scaler_stats.json"
+  },
+  "thresholds": {
+    "threshold": 0.23144060373306274,
+    "runtime_threshold_key": "threshold",
+    "score_direction": "higher_is_attack"
+  },
+  "runtime_threshold_key": "threshold",
+  "score_direction": "higher_is_attack",
+  "rule_policy": {
+    "min_alert_hits": 2,
+    "alert_cooldown_seconds": 5.0,
+    "alert_hold_seconds": 10.0,
+    "score_margin": 0.5,
+    "scan_window_s": 8.0,
+    "scan_unique_ports": 10,
+    "scan_min_hits": 2,
+    "hard_packet_rate": 4000.0,
+    "hard_byte_rate": 4000000.0,
+    "hard_packet_delta": 2500.0,
+    "hard_byte_delta": 2000000.0,
+    "volumetric_min_hits": 2,
+    "baseline_window_s": 60.0,
+    "baseline_min_samples": 3,
+    "rate_multiplier_warn": 2.5,
+    "rate_multiplier_attack": 4.0,
+    "allowlisted_services": {}
+  },
+  "sequence_idle_timeout_s": 120.0,
+  "checkpoint_filename": "transformer.pt"
+}

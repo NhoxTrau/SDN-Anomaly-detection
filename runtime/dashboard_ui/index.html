@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SDN NIDS — Realtime Monitor</title>
+  <meta name="description" content="Real-time SDN anomaly detection dashboard — flow telemetry, deep learning inference, SIEM-style incident management.">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">S</div>
+    <div>
+      <div class="brand-name">SDN NIDS</div>
+      <div class="brand-sub">Realtime Monitor</div>
+    </div>
+  </div>
+
+  <div class="run-picker">
+    <label for="runSelect">Active Run</label>
+    <select id="runSelect"></select>
+  </div>
+
+  <nav class="nav" id="navTabs">
+    <div class="nav-section">Detection</div>
+    <button data-tab="overview" class="active">
+      <span class="nav-icon">◉</span> Overview
+    </button>
+    <button data-tab="incidents">
+      <span class="nav-icon">⚠</span> Incidents
+      <span class="nav-badge" id="navBadge">0</span>
+    </button>
+
+    <div class="nav-section">Network</div>
+    <button data-tab="network">
+      <span class="nav-icon">⬡</span> Network Map
+    </button>
+    <button data-tab="flows">
+      <span class="nav-icon">≋</span> Flow Monitor
+    </button>
+
+    <div class="nav-section">Analysis</div>
+    <button data-tab="models">
+      <span class="nav-icon">◈</span> Model Info
+    </button>
+    <button data-tab="scalability">
+      <span class="nav-icon">⇌</span> Scalability
+    </button>
+
+    <div class="nav-section">System</div>
+    <button data-tab="settings">
+      <span class="nav-icon">⚙</span> Settings
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="conn-row">
+      <div class="conn-dot" id="connDot"></div>
+      <span id="connLabel">offline</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════ MAIN ═══════════════════════ -->
+<div class="main-wrap">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="page-title" id="pageTitle">Overview</div>
+    <div class="topbar-right">
+      <span class="top-uptime" id="topUptime"></span>
+      <span class="top-clock" id="topClock">—</span>
+    </div>
+  </header>
+
+  <!-- ══ PAGE: OVERVIEW ══ -->
+  <section id="tab-overview" class="tab-pane active">
+    <div class="page-body">
+
+      <!-- Status Banner -->
+      <div id="statusBanner" class="status-banner normal">
+        <div class="banner-left">
+          <div id="bannerIcon" class="banner-icon normal">✓</div>
+          <div>
+            <div id="bannerLabel" class="banner-label normal">NORMAL</div>
+            <div id="bannerReason" class="banner-reason">System monitoring active — no anomalies detected</div>
+          </div>
+        </div>
+        <div class="banner-right">
+          <div class="banner-meta-row">
+            <span class="banner-meta-label">Model</span>
+            <span class="banner-meta-val" id="bannerModel">—</span>
+          </div>
+          <div class="banner-meta-row">
+            <span class="banner-meta-label">Last Update</span>
+            <span class="banner-meta-val" id="bannerTs">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="kpi-row">
+        <div class="kpi-card c-red">
+          <div class="kpi-label">Threats Detected</div>
+          <div id="kpiAlerts" class="kpi-value c-red">0</div>
+          <div id="kpiAlertsSub" class="kpi-sub">no active incidents</div>
+        </div>
+        <div class="kpi-card c-blue">
+          <div class="kpi-label">Anomaly Score</div>
+          <div id="kpiScore" class="kpi-value c-blue">—</div>
+          <div id="kpiScoreSub" class="kpi-sub">vs threshold</div>
+        </div>
+        <div class="kpi-card c-cyan">
+          <div class="kpi-label">Detect Latency</div>
+          <div id="kpiLatency" class="kpi-value c-cyan">—</div>
+          <div class="kpi-sub">avg per observation</div>
+        </div>
+        <div class="kpi-card c-green">
+          <div class="kpi-label">Flows Monitored</div>
+          <div id="kpiFlows" class="kpi-value c-green">—</div>
+          <div id="kpiFlowsSub" class="kpi-sub">active seq buffers</div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="g-main">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Score Timeline</div>
+            <div class="card-actions">
+              <span class="pill pill-blue"><span class="live-dot"></span> live</span>
+            </div>
+          </div>
+          <div class="chart-wrap h220">
+            <canvas id="scoreChart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Score Gauge</div>
+            <span class="pill pill-green" id="gaugePill">normal</span>
+          </div>
+          <div class="gauge-wrap">
+            <canvas id="gaugeChart" style="max-width:210px;max-height:116px"></canvas>
+            <div id="gaugeScore" class="gauge-score c-blue">—</div>
+            <div class="gauge-sub">current anomaly score</div>
+            <div class="gauge-thr">
+              <span>0</span>
+              <span id="gaugeThrLabel" style="color:var(--yellow)">thr: —</span>
+              <span id="gaugeMax">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom row: mini incidents + attack sources -->
+      <div class="g2 mt14">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Recent Incidents</div>
+            <div class="card-actions">
+              <span class="pill pill-red" id="overviewIncidentPill">0</span>
+              <button class="btn btn-ghost" id="viewAllBtn" style="font-size:11px;padding:4px 10px">View all →</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="dt">
+              <thead><tr><th>Time</th><th>Sev</th><th>Source</th><th>Type</th><th>Score</th></tr></thead>
+              <tbody id="overviewIncidents">
+                <tr><td colspan="5"><div class="empty"><div class="empty-icon">🛡</div>No incidents</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Active Threat Sources</div>
+            <span class="pill pill-red" id="sourcePill">0 IPs</span>
+          </div>
+          <div id="sourceList" class="source-list">
+            <div class="empty"><div class="empty-icon">🔍</div>No active sources</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══ PAGE: INCIDENTS ══ -->
+  <section id="tab-incidents" class="tab-pane">
+    <div class="page-body">
+      <div class="filter-bar">
+        <input type="text" class="filter-input" id="incidentSearch" placeholder="Search IP, type, reason…">
+        <select class="filter-select" id="incidentSevFilter">
+          <option value="">All Severities</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select class="filter-select" id="incidentTypeFilter">
+          <option value="">All Types</option>
+          <option value="probe">Probe / Scan</option>
+          <option value="brute">Brute Force</option>
+          <option value="ddos">DDoS</option>
+          <option value="dos">DoS</option>
+          <option value="flood">Flood</option>
+          <option value="botnet">Botnet</option>
+        </select>
+        <button class="btn btn-ghost" id="incidentRefreshBtn">↻ Refresh</button>
+        <span class="pill pill-gray" id="incidentTotalPill">0 records</span>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">All Incidents</div>
+        </div>
+        <div class="table-wrap large">
+          <table class="dt" id="incidentTable">
+            <thead>
+              <tr>
+                <th style="width:24px"></th>
+                <th>Time</th>
+                <th>Severity</th>
+                <th>Source IP</th>
+                <th>Destination</th>
+                <th>Attack Type</th>
+                <th>Score</th>
+                <th>Hits</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody id="incidentBody">
+              <tr><td colspan="9"><div class="empty"><div class="empty-icon">🛡</div>No incidents recorded</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PAGE: NETWORK MAP ══ -->
+  <section id="tab-network" class="tab-pane">
+    <div class="page-body">
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head">
+          <div class="card-title">Network Topology</div>
+          <span class="pill pill-green" id="topoBadge">Normal</span>
+        </div>
+        <div class="topo-wrap">
+          <svg id="topoSvg" viewBox="0 0 700 300"></svg>
+          <div id="topoPlaceholder" style="display:none"></div>
+          <div id="topoTip" class="topo-tooltip"></div>
+        </div>
+        <div class="topo-legend">
+          <div class="topo-leg-item"><div class="topo-leg-line" style="background:var(--green)"></div>Normal</div>
+          <div class="topo-leg-item"><div class="topo-leg-line" style="background:var(--yellow)"></div>Suspect</div>
+          <div class="topo-leg-item"><div class="topo-leg-line" style="background:var(--red)"></div>Attack</div>
+          <div class="topo-leg-item"><div class="topo-leg-line" style="background:var(--border2)"></div>Idle</div>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Switch Status</div></div>
+          <div class="table-wrap">
+            <table class="dt">
+              <thead><tr><th>Switch</th><th>Polls</th><th>Replies</th><th>Timeouts</th><th>Avg Delay</th><th>Status</th></tr></thead>
+              <tbody id="switchBody">
+                <tr><td colspan="6"><div class="empty">No switch data</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Active Threat Sources</div></div>
+          <div id="mapSourceList" class="source-list">
+            <div class="empty"><div class="empty-icon">🔍</div>No threats</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PAGE: FLOW MONITOR ══ -->
+  <section id="tab-flows" class="tab-pane">
+    <div class="page-body">
+      <div class="filter-bar">
+        <input type="text" class="filter-input" id="flowSearch" placeholder="Search by IP or entity key…">
+        <select class="filter-select" id="flowProtoFilter">
+          <option value="">All Protocols</option>
+          <option value="6">TCP</option>
+          <option value="17">UDP</option>
+          <option value="1">ICMP</option>
+        </select>
+        <button class="btn btn-ghost" id="flowRefreshBtn">↻ Refresh</button>
+        <span id="flowLastTs" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+      <div class="poll-row">
+        <div class="poll-stat">
+          <div class="poll-stat-label">Throughput</div>
+          <div id="psThroughput" class="poll-stat-val c-blue">—</div>
+        </div>
+        <div class="poll-stat">
+          <div class="poll-stat-label">Queue Depth</div>
+          <div id="psQueue" class="poll-stat-val c-yellow">—</div>
+        </div>
+        <div class="poll-stat">
+          <div class="poll-stat-label">Poll Interval</div>
+          <div id="psPoll" class="poll-stat-val c-cyan">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Active Flows</div>
+          <span class="pill pill-blue" id="flowCountPill">0</span>
+        </div>
+        <div class="table-wrap large">
+          <table class="dt">
+            <thead>
+              <tr>
+                <th>Source</th><th>Destination</th><th>Proto</th>
+                <th>Pkt Rate</th><th>Byte Rate</th><th>Δ Pkt</th><th>Δ Byte</th>
+                <th>Age</th><th>Polls</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="flowBody">
+              <tr><td colspan="10"><div class="empty"><div class="empty-icon">≋</div>No active flows — ensure controller is running</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PAGE: MODEL INFO ══ -->
+  <section id="tab-models" class="tab-pane">
+    <div class="page-body">
+      <div class="g3">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Current Model Bundle</div><span class="pill pill-blue">active</span></div>
+          <div id="bundleInfo" class="kv-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Validation Metrics</div><span class="pill pill-green">optional</span></div>
+          <div id="valMetrics" class="kv-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Test Metrics</div><span class="pill pill-yellow">optional</span></div>
+          <div id="testMetrics" class="kv-list"></div>
+        </div>
+      </div>
+      <div class="card mt14">
+        <div class="card-head"><div class="card-title">Attack-class Breakdown</div><span class="pill pill-gray">single-model view</span></div>
+        <div class="table-wrap">
+          <table class="dt">
+            <thead><tr><th>Attack Type</th><th>Count</th><th>Mean Score</th><th>Recall</th><th>Precision</th></tr></thead>
+            <tbody id="attackBreakdown">
+              <tr><td colspan="5"><div class="empty">No data</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PAGE: SCALABILITY ══ -->
+  <section id="tab-scalability" class="tab-pane">
+    <div class="page-body">
+      <div class="g2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Per-Switch Polling Stats</div><span class="pill pill-yellow">live</span></div>
+          <div class="table-wrap">
+            <table class="dt">
+              <thead><tr><th>Switch</th><th>Polls</th><th>Replies</th><th>Timeouts</th><th>Avg Delay</th><th>Max Delay</th><th>Avg Flows</th><th>Trimmed</th><th>Pressure</th></tr></thead>
+              <tbody id="pollingTable">
+                <tr><td colspan="9"><div class="empty">No polling data</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Scalability Report</div><span class="pill pill-gray">artifact</span></div>
+          <div id="scalabilitySummary" class="kv-list">
+            <div class="empty">No report loaded</div>
+          </div>
+        </div>
+      </div>
+      <div class="g2 mt14">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Latency Breakdown (avg)</div><span class="pill pill-cyan">ms</span></div>
+          <div id="latencyBreakdownList" class="kv-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Controller Runtime Metrics</div><span class="pill pill-green">health</span></div>
+          <div id="controllerMetrics" class="kv-list"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PAGE: SETTINGS ══ -->
+  <section id="tab-settings" class="tab-pane">
+    <div class="page-body">
+      <div class="g2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Model & Runtime Config</div><span class="pill pill-blue">env</span></div>
+          <div id="configList" class="kv-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">System Health Counters</div><span class="pill pill-gray">counters</span></div>
+          <div id="healthList" class="kv-list"></div>
+        </div>
+        <div class="card" style="grid-column:1/-1">
+          <div class="card-head"><div class="card-title">Feature Scheme</div><span class="pill pill-green" id="featureSchemePill">bundle</span></div>
+          <div id="featureList" class="feature-list"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /main-wrap -->
+
+  <script src="/static/charts.js"></script>
+  <script src="/static/sse.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

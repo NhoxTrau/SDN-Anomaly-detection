@@ -1,0 +1,30 @@
+{
+  "dataset_dir": "D:\\TQN_2\\sdn_nids_realtime-v2-full-reviewed-fixed\\sdn_nids_realtime\\datasets\\InSDN",
+  "prepared_dir": "D:\\TQN_2\\sdn_nids_realtime-v2-full-reviewed-fixed\\sdn_nids_realtime\\artifacts_v4\\prepared_autoencoder",
+  "feature_scheme": "insdn_runtime10_v2",
+  "feature_names": [
+    "packet_count",
+    "byte_count",
+    "flow_duration_s",
+    "packet_rate",
+    "byte_rate",
+    "avg_packet_size",
+    "dst_port_norm",
+    "protocol_tcp",
+    "protocol_udp",
+    "protocol_icmp"
+  ],
+  "seq_len": 4,
+  "stride": 1,
+  "train_ratio": 0.7,
+  "val_ratio": 0.15,
+  "split_strategy": "chronological_per_service_key_pre_window_gap",
+  "split_gap": 1,
+  "delta_mode": "runtime_rules_only_not_trained_from_csv",
+  "source_format": "InSDN_CICFlow_export_mapped_to_ml_core_features",
+  "task_type": "lstm_autoencoder",
+  "train_normal_only": true,
+  "max_train_normal_rows": 300000,
+  "normalization": "QuantileTransformer(uniform)+StandardScaler",
+  "seed": 42
+}

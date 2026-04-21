@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_PARENT="$(dirname "$PROJECT_ROOT")"
+
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_PARENT:${PYTHONPATH}"
+export SDN_NIDS_RUNTIME_ROOT="${SDN_NIDS_RUNTIME_ROOT:-$PROJECT_ROOT/runtime_logs}"
+export SDN_NIDS_DASHBOARD_HOST="${SDN_NIDS_DASHBOARD_HOST:-0.0.0.0}"
+export SDN_NIDS_DASHBOARD_PORT="${SDN_NIDS_DASHBOARD_PORT:-8050}"
+export SDN_NIDS_DASHBOARD_STREAM_HOST="${SDN_NIDS_DASHBOARD_STREAM_HOST:-127.0.0.1}"
+export SDN_NIDS_DASHBOARD_STREAM_PORT="${SDN_NIDS_DASHBOARD_STREAM_PORT:-8765}"
+
+python -m sdn_nids_realtime.runtime.dashboard_server \
+  --runtime-root "$SDN_NIDS_RUNTIME_ROOT" \
+  --host "$SDN_NIDS_DASHBOARD_HOST" \
+  --port "$SDN_NIDS_DASHBOARD_PORT" \
+  --stream-host "$SDN_NIDS_DASHBOARD_STREAM_HOST" \
+  --stream-port "$SDN_NIDS_DASHBOARD_STREAM_PORT"
